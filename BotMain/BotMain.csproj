@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NapPlana.NET\NapPlana.Net.Core\NapPlana.Net.Core.csproj" />
+  </ItemGroup>
+
+  <!-- 构建后将 appsettings_example.json 复制为 appsettings.json，仅在目标不存在时执行以保留用户自定义配置 -->
+  <Target Name="CopyDefaultAppSettings" AfterTargets="Build">
+    <MakeDir Directories="$(OutDir)config" />
+    <Copy
+      SourceFiles="appsettings_example.json"
+      DestinationFiles="$(OutDir)config/appsettings.json"
+      Condition="!Exists('$(OutDir)config/appsettings.json')" />
+  </Target>
+
+</Project>
