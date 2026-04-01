@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using BotMain.Logging;
 using BotMain.Net;
+using BotMain.Plugin;
 using NapPlana.Core.Bot.BotInstance;
 using NapPlana.Core.Data.API;
 using NapPlana.Core.Data.Event.Message;
@@ -46,8 +47,12 @@ public static class BotCore
 
     #region Update 循环
 
-    /// <summary>由定时器每秒驱动一次，处理 NetCenter 中积压的消息队列</summary>
-    private static void Update() => s_net?.Update();
+    /// <summary>由定时器每秒驱动一次，处理 NetCenter 中积压的消息队列并驱动插件 Update</summary>
+    private static void Update()
+    {
+        s_net?.Update();
+        PluginManager.Instance.Update();
+    }
 
     #endregion Update 循环
 
@@ -79,6 +84,8 @@ public static class BotCore
     /// <summary>处理接收到的私聊消息，由 NetCenter 内部调用</summary>
     internal static void ProcessPrivateMessage(PrivateMessageEvent msg)
     {
+        if (!GlobalSettings.IsPrivateAllowed(msg.UserId)) return;
+
         var pm = s_privateMessagePool.Rent();
         pm.Initialize(msg.RawMessage, msg.UserId, msg.SubType.ToBotSubType());
         s_onPrivateMessage?.Invoke(pm);
@@ -88,6 +95,8 @@ public static class BotCore
     /// <summary>处理接收到的群聊消息，由 NetCenter 内部调用</summary>
     internal static void ProcessGroupMessage(GroupMessageEvent msg)
     {
+        if (!GlobalSettings.IsGroupAllowed(msg.GroupId)) return;
+
         var gm = s_groupMessagePool.Rent();
         gm.Initialize(msg.RawMessage, msg.UserId, msg.GroupId, msg.Sender.Role.ToBotGroupRole());
         s_onGroupMessage?.Invoke(gm);
@@ -118,6 +127,7 @@ public static class BotCore
     /// <param name="sendImmediately">true 立即发送；false 加入 NetCenter 发送队列</param>
     public static void SendPrivateMessage(string msg, long uid, bool sendImmediately = false)
     {
+        if (!GlobalSettings.IsPrivateAllowed(uid)) return;
         var textMsg = new NapMsg.TextMessage();
         ((NapMsg.TextMessageData)textMsg.MessageData).Text = msg;
         SendPrivateCore([textMsg], uid, sendImmediately);
@@ -126,12 +136,18 @@ public static class BotCore
     /// <summary>发送私聊消息</summary>
     /// <param name="sendImmediately">true 立即发送；false 加入 NetCenter 发送队列</param>
     public static void SendPrivateMessage(BotMsg.MessageBase msg, long uid, bool sendImmediately = false)
-        => SendPrivateCore([msg.ToNapMessage()], uid, sendImmediately);
+    {
+        if (!GlobalSettings.IsPrivateAllowed(uid)) return;
+        SendPrivateCore([msg.ToNapMessage()], uid, sendImmediately);
+    }
 
     /// <summary>发送私聊消息链</summary>
     /// <param name="sendImmediately">true 立即发送；false 加入 NetCenter 发送队列</param>
     public static void SendPrivateMessage(List<BotMsg.MessageBase> msgs, long uid, bool sendImmediately = false)
-        => SendPrivateCore(msgs.ConvertAll(m => m.ToNapMessage()), uid, sendImmediately);
+    {
+        if (!GlobalSettings.IsPrivateAllowed(uid)) return;
+        SendPrivateCore(msgs.ConvertAll(m => m.ToNapMessage()), uid, sendImmediately);
+    }
 
     private static void SendPrivateCore(List<NapMsg.MessageBase> messages, long uid, bool sendImmediately)
     {
@@ -146,6 +162,7 @@ public static class BotCore
     /// <param name="sendImmediately">true 立即发送；false 加入 NetCenter 发送队列</param>
     public static void SendGroupMessage(string msg, long gid, bool sendImmediately = false)
     {
+        if (!GlobalSettings.IsGroupAllowed(gid)) return;
         var textMsg = new NapMsg.TextMessage();
         ((NapMsg.TextMessageData)textMsg.MessageData).Text = msg;
         SendGroupCore([textMsg], gid, sendImmediately);
@@ -154,12 +171,18 @@ public static class BotCore
     /// <summary>发送群聊消息</summary>
     /// <param name="sendImmediately">true 立即发送；false 加入 NetCenter 发送队列</param>
     public static void SendGroupMessage(BotMsg.MessageBase msg, long gid, bool sendImmediately = false)
-        => SendGroupCore([msg.ToNapMessage()], gid, sendImmediately);
+    {
+        if (!GlobalSettings.IsGroupAllowed(gid)) return;
+        SendGroupCore([msg.ToNapMessage()], gid, sendImmediately);
+    }
 
     /// <summary>发送群聊消息链</summary>
     /// <param name="sendImmediately">true 立即发送；false 加入 NetCenter 发送队列</param>
     public static void SendGroupMessage(List<BotMsg.MessageBase> msgs, long gid, bool sendImmediately = false)
-        => SendGroupCore(msgs.ConvertAll(m => m.ToNapMessage()), gid, sendImmediately);
+    {
+        if (!GlobalSettings.IsGroupAllowed(gid)) return;
+        SendGroupCore(msgs.ConvertAll(m => m.ToNapMessage()), gid, sendImmediately);
+    }
 
     private static void SendGroupCore(List<NapMsg.MessageBase> messages, long gid, bool sendImmediately)
     {

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using BotMain.Core;
 using BotMain.Net;
+using BotMain.Plugin;
 using NapPlana.Core.Bot;
 using NapPlana.Core.Bot.BotInstance;
 using NapPlana.Core.Data;
@@ -10,6 +11,29 @@ namespace BotMain;
 
 public class BotEntry
 {
+    private static string s_configPath = string.Empty;
+
+    /// <summary>
+    /// 热重载配置文件，重新读取并应用 GlobalSettings。
+    /// 返回 true 表示成功，false 表示失败（失败时 GlobalSettings 保持原值不变）。
+    /// </summary>
+    internal static bool ReloadConfig()
+    {
+        try
+        {
+            var json = File.ReadAllText(s_configPath);
+            var settings = System.Text.Json.JsonSerializer.Deserialize<AppSettingsJson>(json, BotCore.JsonOptions)
+                ?? throw new InvalidOperationException("配置文件内容为空");
+            GlobalSettings.Load(settings.BotSettings, settings.FilterSettings);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            BotCore.Logger.Error("热重载配置文件失败: {0}", ex.Message);
+            return false;
+        }
+    }
+
     public static async Task Main(string[] args)
     {
         // ── 读取配置 ──────────────────────────────────────────────────────────
@@ -29,7 +53,7 @@ public class BotEntry
         }
 
         // GlobalSettings 加载必须在任何日志输出前完成，以便后续日志遵守设置
-        GlobalSettings.Load(appSettings.BotSettings);
+        GlobalSettings.Load(appSettings.BotSettings, appSettings.FilterSettings);
 
         var ip = appSettings.NapCatConfig?.IP ?? "127.0.0.1";
         var port = appSettings.NapCatConfig?.Port ?? 6100;
@@ -99,10 +123,16 @@ public class BotEntry
             return;
         }
 
+        // ── 加载插件 ──────────────────────────────────────────────────────────
+        var pluginsDir = Path.Combine(AppContext.BaseDirectory, "plugins");
+        PluginManager.Instance.LoadAll(pluginsDir);
+
         // ── 主循环 ────────────────────────────────────────────────────────────
+        s_configPath = Path.Combine(AppContext.BaseDirectory, "config", "appsettings.json");
         ConsoleDebugger.Run();
 
         // ── 停止 Bot ──────────────────────────────────────────────────────────
+        PluginManager.Instance.SaveConfig();
         BotCore.Logger.Info("=== 正在停止Bot... ===");
         await bot.StopAsync();
         BotCore.Logger.Info("=== BotMain 已退出 ===");
@@ -114,6 +144,7 @@ internal class AppSettingsJson
     public NapCatConfigJson? NapCatConfig { get; init; }
     public BotConfigJson? BotConfig { get; init; }
     public BotSettingsJson? BotSettings { get; init; }
+    public FilterSettingsJson? FilterSettings { get; init; }
 }
 
 internal class NapCatConfigJson

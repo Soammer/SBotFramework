@@ -1,4 +1,5 @@
 using BotMain.Core;
+using BotMain.Plugin;
 
 namespace BotMain;
 
@@ -40,6 +41,12 @@ internal static class ConsoleDebugger
             case "SendGroup":
                 ExecuteSendGroup(tokens);
                 break;
+            case "HotReload":
+                ExecuteHotReload(tokens);
+                break;
+            case "Plugin":
+                ExecutePlugin(tokens);
+                break;
             default:
                 Console.WriteLine(c_MsgUnknown);
                 break;
@@ -72,6 +79,85 @@ internal static class ConsoleDebugger
         }
         var sendImmediately = tokens.Length == 4 && bool.Parse(tokens[3]);
         BotCore.SendGroupMessage(tokens[1], gid, sendImmediately);
+    }
+
+    // HotReload
+    private static void ExecuteHotReload(string[] tokens)
+    {
+        if (tokens.Length != 1)
+        {
+            Console.WriteLine(c_MsgBadFormat);
+            return;
+        }
+        if (BotEntry.ReloadConfig())
+            BotCore.Logger.Info("[ConsoleDebugger] 配置文件已热重载");
+    }
+
+    // Plugin list
+    // Plugin <name> --d
+    // Plugin <name> --v
+    // Plugin <name> enable
+    // Plugin <name> disable
+    private static void ExecutePlugin(string[] tokens)
+    {
+        if (tokens.Length < 2)
+        {
+            Console.WriteLine(c_MsgBadFormat);
+            return;
+        }
+
+        var manager = PluginManager.Instance;
+
+        if (string.Equals(tokens[1], "list", StringComparison.OrdinalIgnoreCase))
+        {
+            var plugins = manager.Plugins;
+            if (plugins.Count == 0)
+            {
+                Console.WriteLine("（无已注册插件）");
+                return;
+            }
+            foreach (var p in plugins)
+                Console.WriteLine("[{0}] {1}", p.IsEnabled ? "启用" : "停用", p.PluginName);
+            return;
+        }
+
+        if (tokens.Length < 3)
+        {
+            Console.WriteLine(c_MsgBadFormat);
+            return;
+        }
+
+        var name = tokens[1];
+        var sub = tokens[2];
+
+        switch (sub)
+        {
+            case "--d":
+            {
+                var p = manager.Plugins.FirstOrDefault(
+                    x => string.Equals(x.PluginName, name, StringComparison.OrdinalIgnoreCase));
+                if (p is null) { Console.WriteLine("未找到插件: {0}", name); return; }
+                Console.WriteLine(string.IsNullOrEmpty(p.PluginDes) ? "（无描述）" : p.PluginDes);
+                break;
+            }
+            case "--v":
+            {
+                var p = manager.Plugins.FirstOrDefault(
+                    x => string.Equals(x.PluginName, name, StringComparison.OrdinalIgnoreCase));
+                if (p is null) { Console.WriteLine("未找到插件: {0}", name); return; }
+                Console.WriteLine(string.IsNullOrEmpty(p.PluginVersion) ? "（无版本信息）" : p.PluginVersion);
+                break;
+            }
+            case "enable":
+                manager.Enable(name);
+                break;
+            case "disable":
+                manager.Disable(name);
+                break;
+            default:
+                Console.WriteLine(c_MsgBadFormat);
+                break;
+        }
     }
 
     #endregion 指令分发

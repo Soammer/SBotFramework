@@ -20,4 +20,9 @@
       Condition="!Exists('$(OutDir)config/appsettings.json')" />
   </Target>
 
+  <!-- 构建后确保 plugins 文件夹存在 -->
+  <Target Name="CreatePluginsDirectory" AfterTargets="Build">
+    <MakeDir Directories="$(OutDir)plugins" />
+  </Target>
+
 </Project>
