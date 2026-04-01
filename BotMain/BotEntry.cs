@@ -53,7 +53,7 @@ public class BotEntry
         }
 
         // GlobalSettings 加载必须在任何日志输出前完成，以便后续日志遵守设置
-        GlobalSettings.Load(appSettings.BotSettings, appSettings.FilterSettings);
+        GlobalSettings.Load(appSettings.BotSettings, appSettings.FilterSettings, appSettings.BotConfig?.SelfId ?? 0L);
 
         var ip = appSettings.NapCatConfig?.IP ?? "127.0.0.1";
         var port = appSettings.NapCatConfig?.Port ?? 6100;
@@ -88,11 +88,6 @@ public class BotEntry
         {
             switch (level)
             {
-                case LogLevel.Debug:
-                case LogLevel.Info:
-                    BotCore.Logger.Info("[NapBot] {0}", message);
-                    break;
-
                 case LogLevel.Warning:
                     BotCore.Logger.Warning("[NapBot] {0}", message);
                     break;

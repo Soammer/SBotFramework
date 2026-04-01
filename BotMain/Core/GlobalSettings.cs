@@ -12,10 +12,15 @@ public static class GlobalSettings
     private static int s_maxSendDelaySeconds = 5;
     private static int s_sendTimeoutSeconds = 15;
 
+    private static long s_selfId = 0L;
+
     private static HashSet<long> s_privateList = [];
     private static bool s_privateListIsBlacklist = false;
     private static HashSet<long> s_groupList = [];
     private static bool s_groupListIsBlacklist = false;
+
+    /// <summary>Bot 自身的 UserId，用于屏蔽自身消息</summary>
+    public static long SelfId => s_selfId;
 
     /// <summary>日志最小输出级别，低于此级别的日志将被忽略。默认 Info</summary>
     public static BotLogLevel MinLogLevel => s_minLogLevel;
@@ -31,33 +36,36 @@ public static class GlobalSettings
 
     /// <summary>
     /// 判断指定私聊用户是否被允许（接收或发送）。
-    /// 白名单模式：名单为空时允许所有；名单非空时仅允许名单内的 uid。
+    /// 白名单模式：仅允许名单内的 uid，名单为空时拒绝所有。
     /// 黑名单模式：名单内的 uid 拒绝，其余允许。
     /// </summary>
     public static bool IsPrivateAllowed(long uid)
     {
         if (s_privateListIsBlacklist)
             return !s_privateList.Contains(uid);
-        return s_privateList.Count == 0 || s_privateList.Contains(uid);
+        return s_privateList.Contains(uid);
     }
 
     /// <summary>
     /// 判断指定群聊是否被允许（接收或发送）。
-    /// 白名单模式：名单为空时允许所有；名单非空时仅允许名单内的 gid。
+    /// 白名单模式：仅允许名单内的 gid，名单为空时拒绝所有。
     /// 黑名单模式：名单内的 gid 拒绝，其余允许。
     /// </summary>
     public static bool IsGroupAllowed(long gid)
     {
         if (s_groupListIsBlacklist)
             return !s_groupList.Contains(gid);
-        return s_groupList.Count == 0 || s_groupList.Contains(gid);
+        return s_groupList.Contains(gid);
     }
 
     /// <summary>
     /// 从配置文件加载设置，应在 Bot 启动前调用一次
     /// </summary>
-    public static void Load(BotSettingsJson? settings, FilterSettingsJson? filter = null)
+    public static void Load(BotSettingsJson? settings, FilterSettingsJson? filter = null, long selfId = 0L)
     {
+        if (selfId != 0L)
+            s_selfId = selfId;
+
         if (settings is not null)
         {
             s_minLogLevel = settings.MinLogLevel;

@@ -68,7 +68,7 @@ git submodule update --init
 | `FilterSettings.GroupListIsBlacklist` | `false` = 白名单；`true` = 黑名单 | `false` |
 
 **名单行为说明：**
-- **白名单**（默认）：名单为空时放行所有；名单非空时仅处理/发送名单内的私聊用户或群
+- **白名单**（默认）：仅处理/发送名单内的私聊用户或群；**名单为空时拒绝所有**
 - **黑名单**：拦截名单内的私聊用户或群，其余放行
 - 过滤作用于接收（`ProcessPrivateMessage` / `ProcessGroupMessage`）与发送（`SendPrivateMessage` / `SendGroupMessage`）双侧
 

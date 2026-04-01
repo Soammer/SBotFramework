@@ -48,8 +48,16 @@ public sealed class NetCenter
             "发送-群聊", minBatchSize, cacheThreshold,
             msg => SendGroupMessage(msg));
 
-        BotEventHandler.OnPrivateMessageReceived += ev => _receivePrivate.Enqueue(ev);
-        BotEventHandler.OnGroupMessageReceived += ev => _receiveGroup.Enqueue(ev);
+        BotEventHandler.OnPrivateMessageReceived += ev =>
+        {
+            if (ev.UserId == GlobalSettings.SelfId) return;
+            _receivePrivate.Enqueue(ev);
+        };
+        BotEventHandler.OnGroupMessageReceived += ev =>
+        {
+            if (ev.UserId == GlobalSettings.SelfId) return;
+            _receiveGroup.Enqueue(ev);
+        };
     }
 
     #region 入队接口
