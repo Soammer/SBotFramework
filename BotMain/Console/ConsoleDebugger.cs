@@ -6,11 +6,7 @@ namespace BotMain;
 /// <summary>控制台指令调试器，负责读取并分发控制台输入的指令</summary>
 internal static class ConsoleDebugger
 {
-    private const string c_ExitCommand = "Exit";
-    private const string c_MsgUnknown = "未知的指令";
-    private const string c_MsgBadFormat = "错误的格式或语法";
-
-    /// <summary>启动主循环，阻塞直到输入 Exit 指令</summary>
+    /// <summary>启动主循环，阻塞直到输入 exit 指令</summary>
     internal static void Run()
     {
         while (true)
@@ -19,7 +15,7 @@ internal static class ConsoleDebugger
             if (string.IsNullOrWhiteSpace(input))
                 continue;
 
-            if (string.Equals(input.Trim(), c_ExitCommand, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(input.Trim(), ConsoleConstant.CmdExit, StringComparison.OrdinalIgnoreCase))
                 break;
 
             Dispatch(ParseTokens(input));
@@ -33,82 +29,87 @@ internal static class ConsoleDebugger
         if (tokens.Length == 0)
             return;
 
-        switch (tokens[0])
+        var command = tokens[0].ToLowerInvariant();
+
+        switch (command)
         {
-            case "SendPrivate":
+            case ConsoleConstant.CmdSendPrivate:
                 ExecuteSendPrivate(tokens);
                 break;
-            case "SendGroup":
+            case ConsoleConstant.CmdSendGroup:
                 ExecuteSendGroup(tokens);
                 break;
-            case "HotReload":
+            case ConsoleConstant.CmdHotReload:
                 ExecuteHotReload(tokens);
                 break;
-            case "Plugin":
+            case ConsoleConstant.CmdPlugin:
                 ExecutePlugin(tokens);
                 break;
+            case ConsoleConstant.CmdHelp:
+                ExecuteHelp(tokens);
+                break;
             default:
-                Console.WriteLine(c_MsgUnknown);
+                Console.WriteLine(ConsoleConstant.MsgUnknown);
                 break;
         }
     }
 
-    // SendPrivate <msg> <uid> [sendImmediately]
+    // sendprivate <msg> <uid> [sendImmediately]
     private static void ExecuteSendPrivate(string[] tokens)
     {
         if ((tokens.Length != 3 && tokens.Length != 4)
             || !long.TryParse(tokens[2], out var uid)
             || (tokens.Length == 4 && !bool.TryParse(tokens[3], out _)))
         {
-            Console.WriteLine(c_MsgBadFormat);
+            Console.WriteLine(ConsoleConstant.MsgBadFormat);
             return;
         }
         var sendImmediately = tokens.Length == 4 && bool.Parse(tokens[3]);
         BotCore.SendPrivateMessage(tokens[1], uid, sendImmediately);
     }
 
-    // SendGroup <msg> <gid> [sendImmediately]
+    // sendgroup <msg> <gid> [sendImmediately]
     private static void ExecuteSendGroup(string[] tokens)
     {
         if ((tokens.Length != 3 && tokens.Length != 4)
             || !long.TryParse(tokens[2], out var gid)
             || (tokens.Length == 4 && !bool.TryParse(tokens[3], out _)))
         {
-            Console.WriteLine(c_MsgBadFormat);
+            Console.WriteLine(ConsoleConstant.MsgBadFormat);
             return;
         }
         var sendImmediately = tokens.Length == 4 && bool.Parse(tokens[3]);
         BotCore.SendGroupMessage(tokens[1], gid, sendImmediately);
     }
 
-    // HotReload
+    // hotreload
     private static void ExecuteHotReload(string[] tokens)
     {
         if (tokens.Length != 1)
         {
-            Console.WriteLine(c_MsgBadFormat);
+            Console.WriteLine(ConsoleConstant.MsgBadFormat);
             return;
         }
         if (BotEntry.ReloadConfig())
             BotCore.Logger.Info("[ConsoleDebugger] 配置文件已热重载");
     }
 
-    // Plugin list
-    // Plugin <name> --d
-    // Plugin <name> --v
-    // Plugin <name> enable
-    // Plugin <name> disable
+    // plugin list
+    // plugin <name> --d
+    // plugin <name> --v
+    // plugin <name> enable
+    // plugin <name> disable
     private static void ExecutePlugin(string[] tokens)
     {
         if (tokens.Length < 2)
         {
-            Console.WriteLine(c_MsgBadFormat);
+            Console.WriteLine(ConsoleConstant.MsgBadFormat);
             return;
         }
 
         var manager = PluginManager.Instance;
 
-        if (string.Equals(tokens[1], "list", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(tokens[1], ConsoleConstant.CmdPluginList, StringComparison.OrdinalIgnoreCase))
         {
             var plugins = manager.Plugins;
             if (plugins.Count == 0)
@@ -123,7 +124,7 @@ internal static class ConsoleDebugger
 
         if (tokens.Length < 3)
         {
-            Console.WriteLine(c_MsgBadFormat);
+            Console.WriteLine(ConsoleConstant.MsgBadFormat);
             return;
         }
 
@@ -132,7 +133,7 @@ internal static class ConsoleDebugger
 
         switch (sub)
         {
-            case "--d":
+            case ConsoleConstant.CmdPluginDesc:
             {
                 var p = manager.Plugins.FirstOrDefault(
                     x => string.Equals(x.PluginName, name, StringComparison.OrdinalIgnoreCase));
@@ -140,7 +141,7 @@ internal static class ConsoleDebugger
                 Console.WriteLine(string.IsNullOrEmpty(p.PluginDes) ? "（无描述）" : p.PluginDes);
                 break;
             }
-            case "--v":
+            case ConsoleConstant.CmdPluginVer:
             {
                 var p = manager.Plugins.FirstOrDefault(
                     x => string.Equals(x.PluginName, name, StringComparison.OrdinalIgnoreCase));
@@ -148,16 +149,40 @@ internal static class ConsoleDebugger
                 Console.WriteLine(string.IsNullOrEmpty(p.PluginVersion) ? "（无版本信息）" : p.PluginVersion);
                 break;
             }
-            case "enable":
+            case ConsoleConstant.CmdPluginEnable:
                 manager.Enable(name);
                 break;
-            case "disable":
+            case ConsoleConstant.CmdPluginDisable:
                 manager.Disable(name);
                 break;
             default:
-                Console.WriteLine(c_MsgBadFormat);
+                Console.WriteLine(ConsoleConstant.MsgBadFormat);
                 break;
         }
+    }
+
+    // help
+    // help <CommandName>
+    private static void ExecuteHelp(string[] tokens)
+    {
+        if (tokens.Length == 1)
+        {
+            Console.WriteLine("可用指令：");
+            foreach (var (cmd, brief) in ConsoleConstant.CommandBriefs)
+                Console.WriteLine("  {0,-16}{1}", cmd, brief);
+            return;
+        }
+
+        if (tokens.Length == 2)
+        {
+            if (ConsoleConstant.CommandDetails.TryGetValue(tokens[1], out var detail))
+                Console.Write(detail);
+            else
+                Console.WriteLine("未知的指令: {0}", tokens[1]);
+            return;
+        }
+
+        Console.WriteLine(ConsoleConstant.MsgBadFormat);
     }
 
     #endregion 指令分发

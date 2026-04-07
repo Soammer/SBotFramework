@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.Loader;
 using System.Text.Json;
 using BotMain.Core;
 
@@ -16,15 +17,18 @@ public sealed class PluginManager
     public static PluginManager Instance => s_instance;
 
     private readonly List<PluginInstance> _plugins = [];
+    private readonly List<PluginLoadContext> _loadContexts = [];
     private string _configPath = string.Empty;
 
-    private PluginManager() { }
+    private const string c_EntryTypeName = "Plugins.Main.MainBehavior";
 
     /// <summary>已注册的插件列表（含启用与未启用）</summary>
     public IReadOnlyList<PluginInstance> Plugins => _plugins;
 
     /// <summary>
-    /// 扫描指定目录下的所有 .dll 文件，将其中有且唯一满足条件的插件入口类注册为 <see cref="PluginInstance"/>。
+    /// 扫描指定目录下所有一级子目录，将每个子目录视为一个插件包，
+    /// 使用独立的 <see cref="PluginLoadContext"/> 加载其中的 DLL，
+    /// 找到满足条件的入口类后注册为 <see cref="PluginInstance"/>。
     /// 满足条件：实现 <see cref="IPluginMain"/>、标注 <see cref="PluginEntryAttribute"/>、非抽象非接口。
     /// 注册完成后自动读取同目录下的 config.json，并对标记为启用的插件调用 <see cref="PluginInstance.IsEnabled"/>。
     /// </summary>
@@ -38,11 +42,11 @@ public sealed class PluginManager
 
         _configPath = Path.Combine(pluginsDir, "config.json");
 
-        var dlls = Directory.GetFiles(pluginsDir, "*.dll");
-        BotCore.Logger.Info("[PluginManager] 扫描插件目录，共发现 {0} 个 DLL", dlls.Length);
+        var subDirs = Directory.GetDirectories(pluginsDir);
+        BotCore.Logger.Info("[PluginManager] 扫描插件目录，共发现 {0} 个子目录", subDirs.Length);
 
-        foreach (var dll in dlls)
-            TryLoadPlugin(dll);
+        foreach (var subDir in subDirs)
+            TryLoadPluginFromDir(subDir);
 
         BotCore.Logger.Info("[PluginManager] 插件注册完成，共注册 {0} 个插件", _plugins.Count);
 
@@ -135,62 +139,99 @@ public sealed class PluginManager
         }
     }
 
-    private void TryLoadPlugin(string path)
+    private void TryLoadPluginFromDir(string subDir)
+    {
+        var dirName = Path.GetFileName(subDir);
+        var dlls = Directory.GetFiles(subDir, "*.dll");
+
+        if (dlls.Length == 0)
+        {
+            BotCore.Logger.Warning("[PluginManager] 子目录 \"{0}\" 中没有 DLL 文件，已跳过", dirName);
+            return;
+        }
+
+        var loadContext = new PluginLoadContext(subDir);
+
+        foreach (var dll in dlls)
+        {
+            if (TryLoadPlugin(dll, loadContext, dirName))
+            {
+                _loadContexts.Add(loadContext);
+                return;
+            }
+        }
+
+        BotCore.Logger.Warning("[PluginManager] 子目录 \"{0}\" 中未找到有效的插件入口，已跳过", dirName);
+    }
+
+    /// <returns>成功注册插件时返回 true</returns>
+    private bool TryLoadPlugin(string path, PluginLoadContext loadContext, string dirName)
     {
         var fileName = Path.GetFileName(path);
 
         Assembly assembly;
         try
         {
-            assembly = Assembly.LoadFrom(path);
+            assembly = loadContext.LoadFromAssemblyPath(path);
         }
         catch (Exception ex)
         {
             BotCore.Logger.Warning("[PluginManager] 加载 DLL 失败 \"{0}\": {1}", fileName, ex.Message);
-            return;
+            return false;
         }
 
-        IEnumerable<Type> allTypes;
-        try
+        var entryType = assembly.GetType(c_EntryTypeName);
+
+        // 该 DLL 不含入口类，可能是依赖库，静默跳过
+        if (entryType is null)
+            return false;
+
+        if (entryType.IsAbstract || entryType.IsInterface)
         {
-            allTypes = assembly.GetTypes();
-        }
-        catch (ReflectionTypeLoadException ex)
-        {
-            // 部分类型依赖缺失时，使用已成功加载的子集继续处理
-            BotCore.Logger.Warning("[PluginManager] \"{0}\" 存在部分类型加载失败，将尝试处理可用类型", fileName);
-            allTypes = ex.Types.Where(t => t is not null).Cast<Type>();
-        }
-        catch (Exception ex)
-        {
-            BotCore.Logger.Warning("[PluginManager] 枚举类型失败 \"{0}\": {1}", fileName, ex.Message);
-            return;
+            BotCore.Logger.Warning("[PluginManager] \"{0}\" 的入口类 {1} 不能是抽象类或接口，已跳过", dirName, c_EntryTypeName);
+            return false;
         }
 
-        var candidates = allTypes
-            .Where(t => !t.IsAbstract
-                && !t.IsInterface
-                && typeof(IPluginMain).IsAssignableFrom(t)
-                && t.IsDefined(typeof(PluginEntryAttribute), inherit: false))
-            .ToArray();
-
-        if (candidates.Length == 0)
+        if (!typeof(IPluginMain).IsAssignableFrom(entryType))
         {
-            BotCore.Logger.Warning("[PluginManager] \"{0}\" 中未找到符合条件的插件入口类，已跳过", fileName);
-            return;
+            BotCore.Logger.Warning("[PluginManager] \"{0}\" 的入口类 {1} 未实现 IPluginMain，已跳过", dirName, c_EntryTypeName);
+            return false;
         }
 
-        if (candidates.Length > 1)
+        if (!entryType.IsDefined(typeof(PluginEntryAttribute), inherit: false))
         {
-            BotCore.Logger.Warning(
-                "[PluginManager] \"{0}\" 中存在 {1} 个插件入口类，有且唯一时才会加载，已跳过",
-                fileName, candidates.Length);
-            return;
+            BotCore.Logger.Warning("[PluginManager] \"{0}\" 的入口类 {1} 未标注 PluginEntryAttribute，已跳过", dirName, c_EntryTypeName);
+            return false;
         }
 
-        var instance = new PluginInstance(candidates[0]);
+        var instance = new PluginInstance(entryType);
         _plugins.Add(instance);
-        BotCore.Logger.Info("[PluginManager] 已注册插件: {0} ({1})", instance.PluginName, fileName);
+        BotCore.Logger.Info("[PluginManager] 已注册插件: {0} ({1}/{2})", instance.PluginName, dirName, fileName);
+        return true;
+    }
+
+    /// <summary>
+    /// 插件隔离加载上下文。优先从插件目录解析依赖，找不到时回退到默认上下文。
+    /// 共享程序集（BotMain、NapPlana.NET 等）不应放入插件目录，回退机制确保类型一致性。
+    /// </summary>
+    private sealed class PluginLoadContext : AssemblyLoadContext
+    {
+        private readonly string _pluginDir;
+
+        internal PluginLoadContext(string pluginDir) : base(isCollectible: false)
+        {
+            _pluginDir = pluginDir;
+        }
+
+        protected override Assembly? Load(AssemblyName assemblyName)
+        {
+            var path = Path.Combine(_pluginDir, assemblyName.Name + ".dll");
+            if (File.Exists(path))
+                return LoadFromAssemblyPath(path);
+
+            // 返回 null 回退到默认上下文（主程序已加载的程序集）
+            return null;
+        }
     }
 
     private sealed class PluginConfigEntry
