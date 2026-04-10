@@ -6,7 +6,8 @@ namespace BotMain.Plugin;
 public interface IPluginMain
 {
     /// <summary>插件加载时调用，用于初始化资源、注册事件等</summary>
-    void Init();
+    /// <param name="pluginId">插件唯一 ID，可通过 <see cref="PluginManager.GetPluginById"/> / <see cref="PluginManager.GetPluginDir"/> 查询实例与路径</param>
+    void Init(int pluginId);
 
     /// <summary>插件卸载时调用，用于释放资源、反注册事件等</summary>
     void DeInit();
@@ -16,4 +17,7 @@ public interface IPluginMain
 
     /// <summary>配置热重载时调用，用于重新读取插件自身的配置</summary>
     void Reload();
+
+    /// <summary>控制台输入 debug 指令时调用，tokens[0] 固定为 "debug"</summary>
+    void ReceiveDebugCommand(string[] tokens);
 }

@@ -21,6 +21,12 @@ public sealed class PluginInstance
     /// <summary>插件入口类型的完全限定名</summary>
     public string TypeName => _entryType.FullName ?? _entryType.Name;
 
+    /// <summary>插件唯一 ID，由 <see cref="PluginManager"/> 在注册时分配，Init 时作为参数传入插件</summary>
+    public int PluginId { get; }
+
+    /// <summary>插件所在目录的绝对路径</summary>
+    public string PluginDir { get; }
+
     /// <summary>插件名称（来自 <see cref="PluginEntryAttribute.PluginName"/>）</summary>
     public string PluginName { get; }
 
@@ -30,9 +36,11 @@ public sealed class PluginInstance
     /// <summary>插件版本（来自 <see cref="PluginEntryAttribute.PluginVersion"/>）</summary>
     public string PluginVersion { get; }
 
-    internal PluginInstance(Type entryType)
+    internal PluginInstance(Type entryType, int pluginId, string pluginDir)
     {
         _entryType = entryType;
+        PluginId = pluginId;
+        PluginDir = pluginDir;
         var attr = entryType.GetCustomAttribute<PluginEntryAttribute>()!;
         PluginName = attr.PluginName;
         PluginDes = attr.PluginDes;
@@ -63,7 +71,7 @@ public sealed class PluginInstance
         try
         {
             _main = (IPluginMain)Activator.CreateInstance(_entryType)!;
-            _main.Init();
+            _main.Init(PluginId);
             Settings.Enabled = true;
             BotCore.Logger.Info("[PluginManager] 插件已启用: {0}", PluginName);
         }
@@ -103,6 +111,20 @@ public sealed class PluginInstance
         catch (Exception ex)
         {
             BotCore.Logger.Error("插件 \"{0}\" Update 抛出异常: {1}", PluginName, ex.Message);
+        }
+    }
+
+    /// <summary>由 PluginManager.SendDebugCommand 调用，仅在启用状态下转发</summary>
+    internal void ReceiveDebugCommand(string[] tokens)
+    {
+        if (!Settings.Enabled) return;
+        try
+        {
+            _main?.ReceiveDebugCommand(tokens);
+        }
+        catch (Exception ex)
+        {
+            BotCore.Logger.Error("插件 \"{0}\" ReceiveDebugCommand 抛出异常: {1}", PluginName, ex.Message);
         }
     }
 }

@@ -18,12 +18,26 @@ public sealed class PluginManager
 
     private readonly List<PluginInstance> _plugins = [];
     private readonly List<PluginLoadContext> _loadContexts = [];
+    private readonly Dictionary<int, string> _pluginDirById = [];
     private string _configPath = string.Empty;
+    private int _nextId = 0;
 
     private const string c_EntryTypeName = "Plugins.Main.MainBehavior";
 
     /// <summary>已注册的插件列表（含启用与未启用）</summary>
     public IReadOnlyList<PluginInstance> Plugins => _plugins;
+
+    /// <summary>
+    /// 通过插件 ID 获取对应的 <see cref="PluginInstance"/>，不存在时返回 null。
+    /// </summary>
+    public PluginInstance? GetPluginById(int pluginId)
+        => _plugins.Find(p => p.PluginId == pluginId);
+
+    /// <summary>
+    /// 通过插件 ID 获取该插件所在目录的绝对路径，不存在时返回 null。
+    /// </summary>
+    public string? GetPluginDir(int pluginId)
+        => _pluginDirById.TryGetValue(pluginId, out var dir) ? dir : null;
 
     /// <summary>
     /// 扫描指定目录下所有一级子目录，将每个子目录视为一个插件包，
@@ -115,6 +129,16 @@ public sealed class PluginManager
             plugin.Update();
     }
 
+    /// <summary>
+    /// 将 debug 指令的 tokens 广播给所有已启用的插件，tokens[0] 固定为 "debug"。
+    /// 由 ConsoleDebugger 在接收到 debug 指令时调用。
+    /// </summary>
+    public void SendDebugCommand(string[] tokens)
+    {
+        foreach (var plugin in _plugins)
+            plugin.ReceiveDebugCommand(tokens);
+    }
+
     private void ApplyConfig()
     {
         if (!File.Exists(_configPath)) return;
@@ -154,7 +178,7 @@ public sealed class PluginManager
 
         foreach (var dll in dlls)
         {
-            if (TryLoadPlugin(dll, loadContext, dirName))
+            if (TryLoadPlugin(dll, loadContext, dirName, subDir))
             {
                 _loadContexts.Add(loadContext);
                 return;
@@ -165,7 +189,7 @@ public sealed class PluginManager
     }
 
     /// <returns>成功注册插件时返回 true</returns>
-    private bool TryLoadPlugin(string path, PluginLoadContext loadContext, string dirName)
+    private bool TryLoadPlugin(string path, PluginLoadContext loadContext, string dirName, string subDir)
     {
         var fileName = Path.GetFileName(path);
 
@@ -204,9 +228,10 @@ public sealed class PluginManager
             return false;
         }
 
-        var instance = new PluginInstance(entryType);
+        var instance = new PluginInstance(entryType, _nextId++, subDir);
         _plugins.Add(instance);
-        BotCore.Logger.Info("[PluginManager] 已注册插件: {0} ({1}/{2})", instance.PluginName, dirName, fileName);
+        _pluginDirById[instance.PluginId] = subDir;
+        BotCore.Logger.Info("[PluginManager] 已注册插件: {0} (ID={1}, {2}/{3})", instance.PluginName, instance.PluginId, dirName, fileName);
         return true;
     }
 

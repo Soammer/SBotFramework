@@ -18,6 +18,7 @@ internal static class ConsoleConstant
     internal const string CmdSendGroup   = "sendgroup";
     internal const string CmdHotReload   = "hotreload";
     internal const string CmdPlugin      = "plugin";
+    internal const string CmdDebug       = "debug";
 
     #endregion 指令名
 
@@ -42,6 +43,7 @@ internal static class ConsoleConstant
         (CmdSendGroup,   "向指定群发送群聊消息"),
         (CmdHotReload,   "重新读取配置文件并应用到运行时"),
         (CmdPlugin,      "管理插件（list / enable / disable / --d / --v）"),
+        (CmdDebug,       "向所有已启用插件广播调试指令"),
     ];
 
     /// <summary>各指令的详细用法，键为小写指令名</summary>
@@ -88,6 +90,12 @@ internal static class ConsoleConstant
               plugin <name> enable     启用指定插件（调用 Init）
               plugin <name> disable    停用指定插件（调用 DeInit）
             <name> 为插件 PluginEntryAttribute 中声明的 PluginName，大小写不敏感。
+            """,
+
+        [CmdDebug] = """
+            语法：debug [args...]
+            将完整的 tokens（含 "debug" 本身作为 tokens[0]）广播给所有已启用插件的 ReceiveDebugCommand 方法。
+            参数数量与含义由各插件自行定义。
             """,
     };
 

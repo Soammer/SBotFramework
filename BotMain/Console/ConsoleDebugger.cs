@@ -45,6 +45,9 @@ internal static class ConsoleDebugger
             case ConsoleConstant.CmdPlugin:
                 ExecutePlugin(tokens);
                 break;
+            case ConsoleConstant.CmdDebug:
+                PluginManager.Instance.SendDebugCommand(tokens);
+                break;
             case ConsoleConstant.CmdHelp:
                 ExecuteHelp(tokens);
                 break;
