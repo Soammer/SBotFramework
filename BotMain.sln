@@ -9,6 +9,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NapPlana.Net.Core", "NapPla
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NapPlana.Net.DI", "NapPlana.NET\NapPlana.Net.DI\NapPlana.Net.DI.csproj", "{21C477AD-5185-2088-8AA0-1A1A3C55C7BE}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "STextRenderer", "STextRenderer\STextRenderer.csproj", "{0E47A62B-9163-4861-AF63-DC7CE7296AF6}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UnitTestProject", "UnitTestProject\UnitTestProject.csproj", "{F1B1DFF5-FB15-499C-8751-760C51908DB1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +31,14 @@ Global
 		{21C477AD-5185-2088-8AA0-1A1A3C55C7BE}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{21C477AD-5185-2088-8AA0-1A1A3C55C7BE}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{21C477AD-5185-2088-8AA0-1A1A3C55C7BE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0E47A62B-9163-4861-AF63-DC7CE7296AF6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0E47A62B-9163-4861-AF63-DC7CE7296AF6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0E47A62B-9163-4861-AF63-DC7CE7296AF6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0E47A62B-9163-4861-AF63-DC7CE7296AF6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F1B1DFF5-FB15-499C-8751-760C51908DB1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F1B1DFF5-FB15-499C-8751-760C51908DB1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F1B1DFF5-FB15-499C-8751-760C51908DB1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F1B1DFF5-FB15-499C-8751-760C51908DB1}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
