@@ -9,7 +9,7 @@ public static class ImageBuilder
     private const float c_LineHeightMultiplier = 1.4f;
     private const int c_Padding = 10;
 
-    private static readonly SKColor s_defaultColor = SKColors.Black;
+    private static readonly BotColor s_defaultColor = BotColor.Black;
 
     #region BuildImage
 
@@ -28,7 +28,7 @@ public static class ImageBuilder
     /// <summary>
     /// 将字符串渲染为指定尺寸的图片，指定字体颜色，使用默认字体。
     /// </summary>
-    public static ImageData BuildImage(string text, int width, int height, int fontSize, FontStyle fontStyle, SKColor color)
+    public static ImageData BuildImage(string text, int width, int height, int fontSize, FontStyle fontStyle, BotColor color)
     {
         return BuildImageCore(text, width, height, fontSize, fontStyle, c_DefaultFontFamily, color);
     }
@@ -36,7 +36,7 @@ public static class ImageBuilder
     /// <summary>
     /// 将字符串渲染为指定尺寸的图片，指定字体族与字体颜色。
     /// </summary>
-    public static ImageData BuildImage(string text, int width, int height, int fontSize, FontStyle fontStyle, string fontFamily, SKColor color)
+    public static ImageData BuildImage(string text, int width, int height, int fontSize, FontStyle fontStyle, string fontFamily, BotColor color)
         => BuildImageCore(text, width, height, fontSize, fontStyle, fontFamily, color);
 
     #endregion BuildImage
@@ -69,7 +69,7 @@ public static class ImageBuilder
     #region MeasureImageSize
 
     /// <summary>
-    /// 根据文本内容与渲染参数，计算恰好容纳该文本的最适合图片尺寸。
+    /// 根据文本内容与渲染参数，计算恰好容纳该文本的最适合图片尺寸，使用默认字体。
     /// 以显式换行符（\n）作为分段依据，不对每行文本做自动折叠，
     /// 宽度取各行中最长的自然宽度，高度按行数与行间距累加。
     /// </summary>
@@ -79,8 +79,57 @@ public static class ImageBuilder
     /// <param name="margin">四周外边距（像素），最终尺寸在各方向各扩展此值。</param>
     /// <returns>最适合的图片宽高（均至少为 1）。</returns>
     public static (int Width, int Height) MeasureImageSize(string text, int fontSize, FontStyle fontStyle, int margin)
+        => MeasureImageSizeCore(text, fontSize, fontStyle, margin, c_DefaultFontFamily);
+
+    /// <summary>
+    /// 根据文本内容与渲染参数，计算恰好容纳该文本的最适合图片尺寸，指定字体族。
+    /// 字体族为空或不可用时回退到默认字体。
+    /// 以显式换行符（\n）作为分段依据，不对每行文本做自动折叠，
+    /// 宽度取各行中最长的自然宽度，高度按行数与行间距累加。
+    /// </summary>
+    /// <param name="text">待渲染的文本。</param>
+    /// <param name="fontSize">字体大小（像素）。</param>
+    /// <param name="fontStyle">字体样式。</param>
+    /// <param name="margin">四周外边距（像素），最终尺寸在各方向各扩展此值。</param>
+    /// <param name="fontFamily">字体族名称；为空或不可用时使用默认字体。</param>
+    /// <returns>最适合的图片宽高（均至少为 1）。</returns>
+    public static (int Width, int Height) MeasureImageSize(string text, int fontSize, FontStyle fontStyle, int margin, string fontFamily)
+        => MeasureImageSizeCore(text, fontSize, fontStyle, margin, fontFamily);
+
+    #endregion MeasureImageSize
+
+    #region Private
+
+    private static ImageData BuildImageCore(string text, int width, int height, int fontSize, FontStyle fontStyle, string fontFamily, BotColor color)
     {
-        using var typeface = SKTypeface.FromFamilyName(c_DefaultFontFamily, ToSKFontStyle(fontStyle))
+        var bitmap = new SKBitmap(width, height);
+
+        using var canvas = new SKCanvas(bitmap);
+        canvas.Clear(SKColors.White);
+
+        using var typeface = SKTypeface.FromFamilyName(fontFamily, ToSKFontStyle(fontStyle))
+                             ?? SKTypeface.Default;
+
+        using var paint = new SKPaint
+        {
+            Color = new SKColor(color.R, color.G, color.B, color.A),
+            IsAntialias = true,
+            TextSize = fontSize,
+            Typeface = typeface,
+        };
+
+        DrawWrappedText(canvas, paint, text, width, height, fontSize);
+
+        return new ImageData(bitmap);
+    }
+
+    private static (int Width, int Height) MeasureImageSizeCore(string text, int fontSize, FontStyle fontStyle, int margin, string fontFamily)
+    {
+        var resolvedFamily = string.IsNullOrWhiteSpace(fontFamily) ? c_DefaultFontFamily : fontFamily;
+        var skStyle = ToSKFontStyle(fontStyle);
+
+        using var typeface = SKTypeface.FromFamilyName(resolvedFamily, skStyle)
+                             ?? SKTypeface.FromFamilyName(c_DefaultFontFamily, skStyle)
                              ?? SKTypeface.Default;
 
         using var paint = new SKPaint
@@ -107,7 +156,6 @@ public static class ImageBuilder
             }
         }
 
-        // 高度 = 首行文字高度（fontSize）+ 后续每行的行间距
         var lineHeight = fontSize * c_LineHeightMultiplier;
         var textHeight = fontSize + (lines.Length - 1) * lineHeight;
 
@@ -115,33 +163,6 @@ public static class ImageBuilder
         var height = (int)Math.Ceiling(textHeight) + margin * 2;
 
         return (Math.Max(width, 1), Math.Max(height, 1));
-    }
-
-    #endregion MeasureImageSize
-
-    #region Private
-
-    private static ImageData BuildImageCore(string text, int width, int height, int fontSize, FontStyle fontStyle, string fontFamily, SKColor color)
-    {
-        var bitmap = new SKBitmap(width, height);
-
-        using var canvas = new SKCanvas(bitmap);
-        canvas.Clear(SKColors.White);
-
-        using var typeface = SKTypeface.FromFamilyName(fontFamily, ToSKFontStyle(fontStyle))
-                             ?? SKTypeface.Default;
-
-        using var paint = new SKPaint
-        {
-            Color = color,
-            IsAntialias = true,
-            TextSize = fontSize,
-            Typeface = typeface,
-        };
-
-        DrawWrappedText(canvas, paint, text, width, height, fontSize);
-
-        return new ImageData(bitmap);
     }
 
     private static void DrawWrappedText(SKCanvas canvas, SKPaint paint, string text, int imageWidth, int imageHeight, int fontSize)

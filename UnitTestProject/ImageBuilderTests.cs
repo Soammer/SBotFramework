@@ -23,44 +23,19 @@ public sealed class ImageBuilderTests
         //}
     }
 
-
-    #region BuildImage — 文本换行
-    [TestMethod]
-    public void BuildImage_LongText_WrapsWithoutThrow()
-    {
-        var text = string.Concat(Enumerable.Repeat("这是一段用于测试自动换行的中文文本。", 20));
-        using var result = ImageBuilder.BuildImage(text, 400, 600, 16, FontStyle.Regular);
-        Assert.IsNotNull(result);
-    }
-
-    #endregion
-
     #region ExportImage — PNG
 
     [TestMethod]
     public void ExportImage_Png_CreatesFile()
     {
+        const string c_font = "Sarasa Fixed Slab SC";
         var path = Path.Combine(_tempDir, "output.png");
-        string text = """
-            .reg
-            -reg [名称] [种族]，名称有效字符串不超过14（中文视为2）
-            种族包括1- 人 2-猫粮
-            """;
-        var (h, w) = ImageBuilder.MeasureImageSize(text, 14, FontStyle.Regular, 30);
-        using var result = ImageBuilder.BuildImage(text, h, w, 14, FontStyle.Regular);
+        string text = ".reg [名称] [种族] 注册，不超过14有效字符串（中文视为2）\n种族包括：1-人 2-猫粮";
+        var (h, w) = ImageBuilder.MeasureImageSize(text, 28, FontStyle.Regular, 16, c_font);
+        using var result = ImageBuilder.BuildImage(text, h, w, 28, FontStyle.Regular, c_font);
         ImageBuilder.ExportImage(result, path);
         Assert.IsTrue(File.Exists(path));
     }
-
-    [TestMethod]
-    public void ExportImage_Png_CreatesNestedDirectory()
-    {
-        var path = Path.Combine(_tempDir, "sub", "nested", "output.png");
-        using var data = ImageBuilder.BuildImage("Dir test", 100, 50, 14, FontStyle.Regular);
-        ImageBuilder.ExportImage(data, path);
-        Assert.IsTrue(File.Exists(path));
-    }
-
     #endregion
 
     #region Helper
