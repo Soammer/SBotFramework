@@ -128,6 +128,7 @@ public class BotEntry
 
         // ── 停止 Bot ──────────────────────────────────────────────────────────
         PluginManager.Instance.SaveConfig();
+        PluginManager.Instance.ShutDownAll();
         BotCore.Logger.Info("=== 正在停止Bot... ===");
         await bot.StopAsync();
         BotCore.Logger.Info("=== BotMain 已退出 ===");

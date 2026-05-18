@@ -60,7 +60,21 @@ public sealed class PluginManager
         BotCore.Logger.Info("[PluginManager] 扫描插件目录，共发现 {0} 个子目录", subDirs.Length);
 
         foreach (var subDir in subDirs)
+        {
+#if DEBUG
+            try
+            {
+                TryLoadPluginFromDir(subDir);
+            }
+            catch (Exception ex)
+            {
+                BotCore.Logger.Error("[PluginManager] 加载插件目录 \"{0}\" 时发生异常: {1}\n{2}",
+                    Path.GetFileName(subDir), ex.Message, ex.StackTrace);
+            }
+#else
             TryLoadPluginFromDir(subDir);
+#endif
+        }
 
         BotCore.Logger.Info("[PluginManager] 插件注册完成，共注册 {0} 个插件", _plugins.Count);
 
@@ -100,7 +114,20 @@ public sealed class PluginManager
             BotCore.Logger.Warning("[PluginManager] 未找到插件: {0}", pluginName);
             return false;
         }
+#if DEBUG
+        try
+        {
+            plugin.IsEnabled = true;
+        }
+        catch (Exception ex)
+        {
+            BotCore.Logger.Error("[PluginManager] 启用插件 \"{0}\" 时发生异常: {1}\n{2}",
+                pluginName, ex.Message, ex.StackTrace);
+            return false;
+        }
+#else
         plugin.IsEnabled = true;
+#endif
         return true;
     }
 
@@ -115,12 +142,37 @@ public sealed class PluginManager
             BotCore.Logger.Warning("[PluginManager] 未找到插件: {0}", pluginName);
             return false;
         }
+#if DEBUG
+        try
+        {
+            plugin.IsEnabled = false;
+        }
+        catch (Exception ex)
+        {
+            BotCore.Logger.Error("[PluginManager] 卸载插件 \"{0}\" 时发生异常: {1}\n{2}",
+                pluginName, ex.Message, ex.StackTrace);
+            return false;
+        }
+#else
         plugin.IsEnabled = false;
+#endif
         return true;
     }
 
     private PluginInstance? FindByName(string pluginName)
         => _plugins.Find(p => string.Equals(p.PluginName, pluginName, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// 对所有已启用的插件执行 DeInit，释放资源但不改变启用状态。
+    /// 应在 <see cref="SaveConfig"/> 之后、Bot 停止前调用。
+    /// </summary>
+    public void ShutDownAll()
+    {
+        foreach (var plugin in _plugins)
+            plugin.ShutDown();
+
+        BotCore.Logger.Info("[PluginManager] 所有插件已完成 DeInit");
+    }
 
     /// <summary>由 BotCore.Update 驱动，对所有已启用的插件调用 Update</summary>
     internal void Update()

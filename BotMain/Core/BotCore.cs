@@ -88,7 +88,18 @@ public static class BotCore
 
         var pm = s_privateMessagePool.Rent();
         pm.Initialize(msg.RawMessage, msg.UserId, msg.SubType.ToBotSubType());
+#if DEBUG
+        try
+        {
+            s_onPrivateMessage?.Invoke(pm);
+        }
+        catch (Exception e)
+        {
+            Logger.Error("ProcessPrivateMessage 异常: {0}", e);
+        }
+#else
         s_onPrivateMessage?.Invoke(pm);
+#endif
         s_privateMessagePool.Return(pm);
     }
 
@@ -99,7 +110,18 @@ public static class BotCore
 
         var gm = s_groupMessagePool.Rent();
         gm.Initialize(msg.RawMessage, msg.UserId, msg.GroupId, msg.Sender.Role.ToBotGroupRole());
+#if DEBUG
+        try
+        {
+            s_onGroupMessage?.Invoke(gm);
+        }
+        catch (Exception e)
+        {
+            Logger.Error("ProcessGroupMessage 异常: {0}", e);
+        }
+#else
         s_onGroupMessage?.Invoke(gm);
+#endif
         s_groupMessagePool.Return(gm);
     }
 

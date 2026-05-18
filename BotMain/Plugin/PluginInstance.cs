@@ -100,6 +100,27 @@ public sealed class PluginInstance
         }
     }
 
+    /// <summary>
+    /// 仅清理资源（调用 DeInit 并回收实例），不改变 <see cref="Settings.Enabled"/> 状态。
+    /// 用于 Bot 关闭时对所有已启用插件执行 DeInit，同时保留配置中的启用标记。
+    /// </summary>
+    internal void ShutDown()
+    {
+        if (_main is null) return;
+        try
+        {
+            _main.DeInit();
+        }
+        catch (Exception ex)
+        {
+            BotCore.Logger.Error("关闭插件 \"{0}\" 时 DeInit 抛出异常: {1}", PluginName, ex.Message);
+        }
+        finally
+        {
+            _main = null;
+        }
+    }
+
     /// <summary>由 PluginManager 每次 Update 时调用，仅在启用状态下驱动插件</summary>
     internal void Update()
     {
