@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Runtime.Loader;
 using System.Text.Json;
 using BotMain.Core;
@@ -288,26 +289,89 @@ public sealed class PluginManager
     }
 
     /// <summary>
-    /// 插件隔离加载上下文。优先从插件目录解析依赖，找不到时回退到默认上下文。
-    /// 共享程序集（BotMain、NapPlana.NET 等）不应放入插件目录，回退机制确保类型一致性。
+    /// 插件隔离加载上下文。约定每个插件的第三方依赖统一存放在 <c>plugins/&lt;插件名&gt;/libs/</c> 子目录下：
+    /// 托管 dll 平铺于 <c>libs/</c>，原生 dll 平铺于 <c>libs/runtimes/&lt;rid&gt;/native/</c>（NuGet 标准结构）。
+    /// 查找顺序：libs/ → 插件目录根 → 默认上下文（用于宿主共享程序集）。
+    /// 共享程序集（BotMain、NapPlana.NET 等）不应放入插件目录，回退到默认上下文以确保类型一致性。
     /// </summary>
     private sealed class PluginLoadContext : AssemblyLoadContext
     {
+        private const string c_LibsDirName = "libs";
+
         private readonly string _pluginDir;
+        private readonly string _libsDir;
 
         internal PluginLoadContext(string pluginDir) : base(isCollectible: false)
         {
             _pluginDir = pluginDir;
+            _libsDir = Path.Combine(pluginDir, c_LibsDirName);
         }
 
         protected override Assembly? Load(AssemblyName assemblyName)
         {
-            var path = Path.Combine(_pluginDir, assemblyName.Name + ".dll");
-            if (File.Exists(path))
-                return LoadFromAssemblyPath(path);
+            var fileName = assemblyName.Name + ".dll";
 
-            // 返回 null 回退到默认上下文（主程序已加载的程序集）
+            // 1. libs/ 下的依赖 dll（约定的存放位置）
+            var libsPath = Path.Combine(_libsDir, fileName);
+            if (File.Exists(libsPath))
+                return LoadFromAssemblyPath(libsPath);
+
+            // 2. 插件目录根（入口 dll 自身或简易插件直接平铺的 dll）
+            var rootPath = Path.Combine(_pluginDir, fileName);
+            if (File.Exists(rootPath))
+                return LoadFromAssemblyPath(rootPath);
+
+            // 3. 返回 null 回退到默认上下文（宿主已加载的共享程序集）
             return null;
+        }
+
+        protected override IntPtr LoadUnmanagedDll(string unmanagedDllName)
+        {
+            var fileName = AppendNativeExtensionIfMissing(unmanagedDllName);
+
+            // 1. libs/runtimes/<rid>/native/<name>（NuGet 包的标准原生库路径）
+            var ridPath = Path.Combine(_libsDir, "runtimes", GetCurrentRid(), "native", fileName);
+            if (File.Exists(ridPath))
+                return LoadUnmanagedDllFromPath(ridPath);
+
+            // 2. libs/<name>（平铺的原生库）
+            var libsPath = Path.Combine(_libsDir, fileName);
+            if (File.Exists(libsPath))
+                return LoadUnmanagedDllFromPath(libsPath);
+
+            // 3. 插件目录根
+            var rootPath = Path.Combine(_pluginDir, fileName);
+            if (File.Exists(rootPath))
+                return LoadUnmanagedDllFromPath(rootPath);
+
+            // 4. 返回 Zero 让 CLR 走平台默认搜索（含 BotMain.exe 所在目录与 PATH）
+            return IntPtr.Zero;
+        }
+
+        private static string AppendNativeExtensionIfMissing(string name)
+        {
+            if (name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)
+                || name.EndsWith(".so", StringComparison.OrdinalIgnoreCase)
+                || name.EndsWith(".dylib", StringComparison.OrdinalIgnoreCase))
+                return name;
+
+            return name + (OperatingSystem.IsWindows() ? ".dll"
+                : OperatingSystem.IsMacOS() ? ".dylib" : ".so");
+        }
+
+        private static string GetCurrentRid()
+        {
+            var os = OperatingSystem.IsWindows() ? "win"
+                : OperatingSystem.IsMacOS() ? "osx" : "linux";
+            var arch = RuntimeInformation.ProcessArchitecture switch
+            {
+                Architecture.X64 => "x64",
+                Architecture.X86 => "x86",
+                Architecture.Arm64 => "arm64",
+                Architecture.Arm => "arm",
+                _ => "x64",
+            };
+            return $"{os}-{arch}";
         }
     }
 
