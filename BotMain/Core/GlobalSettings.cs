@@ -11,6 +11,7 @@ public static class GlobalSettings
     private static bool s_enableLogColor = false;
     private static int s_maxSendDelaySeconds = 5;
     private static int s_sendTimeoutSeconds = 15;
+    private static long s_debugOutputGroupId = 0L;
 
     private static long s_selfId = 0L;
 
@@ -33,6 +34,9 @@ public static class GlobalSettings
 
     /// <summary>消息发送接口调用的超时秒数。默认 15</summary>
     public static int SendTimeoutSeconds => s_sendTimeoutSeconds;
+
+    /// <summary>调试输出群号：处理收到的消息时若发生异常，将异常信息发送到此群。0 表示不发送（默认）</summary>
+    public static long DebugOutputGroupId => s_debugOutputGroupId;
 
     /// <summary>
     /// 判断指定私聊用户是否被允许（接收或发送）。
@@ -72,6 +76,7 @@ public static class GlobalSettings
             s_enableLogColor = settings.EnableLogColor;
             s_maxSendDelaySeconds = Math.Max(1, settings.MaxSendDelaySeconds);
             s_sendTimeoutSeconds = Math.Max(1, settings.SendTimeoutSeconds);
+            s_debugOutputGroupId = settings.DebugOutputGroupId;
         }
 
         if (filter is not null)
@@ -90,6 +95,9 @@ public class BotSettingsJson
     public bool EnableLogColor { get; init; } = false;
     public int MaxSendDelaySeconds { get; init; } = 3;
     public int SendTimeoutSeconds { get; init; } = 15;
+
+    /// <summary>调试输出群号：处理收到的消息时发生异常会将异常信息发送到此群。0（默认）表示不发送，可为空</summary>
+    public long DebugOutputGroupId { get; init; } = 0L;
 }
 
 public class FilterSettingsJson

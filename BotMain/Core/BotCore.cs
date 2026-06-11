@@ -88,18 +88,14 @@ public static class BotCore
 
         var pm = s_privateMessagePool.Rent();
         pm.Initialize(msg.RawMessage, msg.UserId, msg.SubType.ToBotSubType());
-#if DEBUG
         try
         {
             s_onPrivateMessage?.Invoke(pm);
         }
         catch (Exception e)
         {
-            Logger.Error("ProcessPrivateMessage 异常: {0}", e);
+            ReportProcessException("ProcessPrivateMessage", e);
         }
-#else
-        s_onPrivateMessage?.Invoke(pm);
-#endif
         s_privateMessagePool.Return(pm);
     }
 
@@ -110,19 +106,36 @@ public static class BotCore
 
         var gm = s_groupMessagePool.Rent();
         gm.Initialize(msg.RawMessage, msg.UserId, msg.GroupId, msg.Sender.Role.ToBotGroupRole());
-#if DEBUG
         try
         {
             s_onGroupMessage?.Invoke(gm);
         }
         catch (Exception e)
         {
-            Logger.Error("ProcessGroupMessage 异常: {0}", e);
+            ReportProcessException("ProcessGroupMessage", e);
         }
-#else
-        s_onGroupMessage?.Invoke(gm);
-#endif
         s_groupMessagePool.Return(gm);
+    }
+
+    /// <summary>
+    /// 统一处理消息回调中的异常：写入错误日志；若配置了调试输出群号，则将异常信息发送到该群。
+    /// 发送本身的异常会被吞掉（仅记录日志），避免二次抛出。
+    /// </summary>
+    private static void ReportProcessException(string source, Exception e)
+    {
+        Logger.Error("{0} 异常: {1}", source, e);
+
+        var debugGid = GlobalSettings.DebugOutputGroupId;
+        if (debugGid == 0L) return;
+
+        try
+        {
+            SendGroupMessage($"[{source}] 异常:\n{e}", debugGid);
+        }
+        catch (Exception sendEx)
+        {
+            Logger.Error("发送异常信息到调试群 {0} 失败: {1}", debugGid, sendEx.Message);
+        }
     }
 
     #endregion 消息接收事件
