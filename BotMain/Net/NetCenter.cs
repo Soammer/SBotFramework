@@ -78,22 +78,54 @@ public sealed class NetCenter
 
     #region 发送实现
 
-    /// <summary>在随机延迟后发送私聊消息，延迟范围为 [1, MaxSendDelaySeconds] 秒</summary>
+    private readonly object _sendTimeLock = new();
+
+    /// <summary>上一条私聊消息的计划发送时间点（UTC）</summary>
+    private DateTime _nextPrivateSendTime = DateTime.MinValue;
+
+    /// <summary>上一条群聊消息的计划发送时间点（UTC）</summary>
+    private DateTime _nextGroupSendTime = DateTime.MinValue;
+
+    /// <summary>
+    /// 计算下一条消息的计划发送时间点：以「上一条消息的计划发送时间」与当前时间的较晚者为基准，
+    /// 向后随机延迟 [1, MaxSendDelaySeconds] 秒。
+    /// 相邻两条消息的计划时间至少相隔 1 秒，保证同一队列内实际发送顺序与入队顺序一致
+    /// （旧实现每条消息独立随机延迟，同一帧入队的多条消息可能乱序）。
+    /// </summary>
+    private DateTime ScheduleNextSendTime(ref DateTime nextSendTime)
+    {
+        lock (_sendTimeLock)
+        {
+            var now = DateTime.UtcNow;
+            var baseline = nextSendTime > now ? nextSendTime : now;
+            var sendAt = baseline.AddSeconds(BotCore.Random.Next(1, GlobalSettings.MaxSendDelaySeconds + 1));
+            nextSendTime = sendAt;
+            return sendAt;
+        }
+    }
+
+    /// <summary>在计划时间点发送私聊消息（上一条计划时间基础上随机顺延，入队顺序即发送顺序）</summary>
     internal void SendPrivateMessage(PrivateMessageSend msg)
     {
+        var sendAt = ScheduleNextSendTime(ref _nextPrivateSendTime);
         Task.Run(async () =>
         {
-            await Task.Delay(TimeSpan.FromSeconds(BotCore.Random.Next(1, GlobalSettings.MaxSendDelaySeconds + 1)));
+            var delay = sendAt - DateTime.UtcNow;
+            if (delay > TimeSpan.Zero)
+                await Task.Delay(delay);
             await _bot.SendPrivateMessageAsync(msg, GlobalSettings.SendTimeoutSeconds);
         });
     }
 
-    /// <summary>在随机延迟后发送群聊消息，延迟范围为 [1, MaxSendDelaySeconds] 秒</summary>
+    /// <summary>在计划时间点发送群聊消息（上一条计划时间基础上随机顺延，入队顺序即发送顺序）</summary>
     internal void SendGroupMessage(GroupMessageSend msg)
     {
+        var sendAt = ScheduleNextSendTime(ref _nextGroupSendTime);
         Task.Run(async () =>
         {
-            await Task.Delay(TimeSpan.FromSeconds(BotCore.Random.Next(1, GlobalSettings.MaxSendDelaySeconds + 1)));
+            var delay = sendAt - DateTime.UtcNow;
+            if (delay > TimeSpan.Zero)
+                await Task.Delay(delay);
             await _bot.SendGroupMessageAsync(msg, GlobalSettings.SendTimeoutSeconds);
         });
     }
